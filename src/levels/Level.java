@@ -12,6 +12,8 @@ import org.newdawn.slick.SlickException;
 import org.newdawn.slick.Input;
 import org.newdawn.slick.Graphics;
 import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Rectangle;
+import org.newdawn.slick.geom.Point;
 import org.newdawn.slick.geom.Vector2f;
 import org.newdawn.slick.state.StateBasedGame;
 import org.newdawn.slick.state.BasicGameState;
@@ -23,7 +25,12 @@ public class Level extends BasicGameState {
     private Player p2;
     private float SPEED = 0.25f;
     private Image background;
+    private Point mousePoint;
+    private Image masterResumeBtn, masterBackBtn, masterRetryBtn;
+    private Image activeResumeBtn, activeBackBtn, activeRetryBtn;
+    private Image passiveResumeBtn, passiveBackBtn, passiveRetryBtn;
     private float ctime;
+    private float ctime2;
     private int SCORE;
     private int AMT_MISSED;
     private ArrayList<Enemy> enemy;
@@ -41,25 +48,67 @@ public class Level extends BasicGameState {
         enemy = new ArrayList<>();
         npc = new ArrayList<>();
         LoadRes();
+        activeResumeBtn = new Image("./res/img/actResume.png");
+        activeBackBtn = new Image("./res/img/actToMenu.png");
+        activeRetryBtn = new Image("./res/img/actRetry.png");
+        
+        passiveResumeBtn = new Image("./res/img/passResume.png");
+        passiveBackBtn = new Image("./res/img/passToMenu.png");
+        passiveRetryBtn = new Image("./res/img/passRetry.png");
+        
+        masterResumeBtn = passiveResumeBtn;
+        masterRetryBtn = passiveRetryBtn;
+        masterBackBtn = passiveBackBtn;
+    }
+    
+    private void Reset(){
+        if(!bullet.isEmpty()){
+            bullet.clear();
+        }
+        
+        if(!enemy.isEmpty()){
+            enemy.clear();
+        }
+        
+        if(!npc.isEmpty()){
+            npc.clear();
+        }
+        
+        GenPlayers();
+        try{
+            LoadRes();
+        }catch(SlickException e){
+            e.printStackTrace();
+        }
     }
     
     public void update(GameContainer gc, StateBasedGame sbg, int delta)throws SlickException{
+        Input in = gc.getInput();
+        if(in.isKeyPressed(Input.KEY_ESCAPE)){
+            Pause =! Pause;
+        }
         if(!GameOver){
             if(!Pause){
                 this.ctime += delta/10;
-                System.out.println(bullet.size());
-                if(ctime > 5){
-                    GenerateTraffic();
+                this.ctime2 += delta/10;
+                if(ctime > 25){
+                    GenerateNPC();
                     ctime = 0;
+                }
+                if(ctime2 > 50){
+                    GenerateEnemy();
+                    ctime2 = 0;
                 }
                 HandlePlayers(gc, delta);
                 HandleAuto(delta);
                 
             }else{
                 //display pause screen
+                HandlePauseScreen(gc, sbg);
             }
         }else{
             //display Game over screen
+            HandleGameOverScreen(gc, sbg);
         }
     }
     
@@ -67,30 +116,30 @@ public class Level extends BasicGameState {
        if(!GameOver){
             if(!Pause){
                 g.drawImage(background, 0, 0);
+                g.drawString("Score: " + SCORE, 64, 740);
                 p1.Render(g);
                 p2.Render(g);
                 DrawAuto(g);
             }else{
                 //display pause screen
+                RenderPauseScreen(g);
             }
         }else{
             //display Game over screen
-           g.drawImage(background, 0, 0);
+           RenderGameOverScreen(g);
         }
     }
     
     public int getID(){
-        return 0;
+        return 1;
     }
     
     private void GenPlayers(){
         p1 = new Player(new Vector2f(128, 704), new Vector2f(32, 32), 0);
         p2 = new Player(new Vector2f(384, 64), new Vector2f(32, 32), 1);
-        p1.SetDebugRender(true);
-        p2.SetDebugRender(true);
     }
     
-    private void HandlePlayers(GameContainer gc, int delta){
+    private void HandlePlayers(GameContainer gc, int delta)throws SlickException{
         Input input = gc.getInput();
         
         //player 1 movement
@@ -142,7 +191,6 @@ public class Level extends BasicGameState {
     
     private void HandleAuto(int delta){
         for(int i = 0; i < bullet.size(); i++){
-            bullet.get(i).SetDebugRender(true);
             if(bullet.size() > 0){
                 if(bullet.get(i).GetDirection() == 0){
                     bullet.get(i).GetPos().y -= (2*SPEED)* delta;
@@ -160,7 +208,6 @@ public class Level extends BasicGameState {
             }
         }
         for(int j = 0; j < enemy.size(); j++){
-                enemy.get(j).SetDebugRender(true);
                 if(enemy.size() > 0){
                     if(enemy.get(j).GetDirection() == 1){
                         enemy.get(j).GetPos().y += (2*SPEED)*delta;
@@ -178,8 +225,10 @@ public class Level extends BasicGameState {
                         }
                 }
                 for(int i = 0; i < bullet.size(); i++){
-                    if(i < enemy.size() && j < bullet.size()){
-                        if(bullet.get(i).HasIntersected(enemy.get(j))){
+                    if(i < enemy.size()){
+                       if(bullet.get(i).HasIntersected(enemy.get(j))){
+                            System.out.println("I: " + i);
+                            System.out.println("J: " + j);
                             SCORE+=2;
                             enemy.remove(j);
                             bullet.remove(i);
@@ -190,30 +239,32 @@ public class Level extends BasicGameState {
             }
             
             for(int k = 0; k < npc.size(); k++){
-                npc.get(j).SetDebugRender(true);
-                if(k >= 0){
+                if(npc.size() > 0){
                     if(npc.get(k).GetDirection() == 1){
                         npc.get(k).GetPos().y += (2*SPEED)*delta;
                         npc.get(k).SetY(npc.get(k).GetPos().y);
-                        if(npc.get(k).GetPos().y < 768){
+                        if(npc.get(k).GetPos().y > 768){
+                            SCORE-=1;
                             npc.remove(k);
                         }
                     }else{
                         npc.get(k).GetPos().y -= (2*SPEED)*delta;
                         npc.get(k).SetY(npc.get(k).GetPos().y);
-                        if(npc.get(k).GetPos().y > 0){
+                        if(npc.get(k).GetPos().y < 0){
+                            SCORE-=1;
                             npc.remove(k);
                         }
                     }
                     for(int i = 0; i < bullet.size(); i++){
                         if(i < npc.size()){
-                            if(bullet.get(i).HasIntersected(npc.get(k))){
+                            if(bullet.get(i).HasIntersected(npc.get(k)) && i <= k){
+                                System.out.println("I: " + i);
+                                System.out.println("K: " + k);
                                 SCORE-=1;
                                 npc.remove(k);
                                 bullet.remove(i);
                             }
                         }
-                        
                     }
                  }
                }
@@ -243,38 +294,147 @@ public class Level extends BasicGameState {
         }else{
             bullet.add(new Block(new Vector2f(p.GetPos().x + (p.GetDim().x/4), p.GetPos().y), new Vector2f(16, 16), 1));
         }
+        for(int i = 0; i < bullet.size(); i++){
+            try{
+                bullet.get(i).SetImage(new Image("./res/img/bullet.png"));
+            }catch(SlickException e){
+                e.printStackTrace();
+            }
+        }
     }
     
     private void LoadRes()throws SlickException{
         background = new Image("./res/img/background.png");
+        p1.SetImage(new Image("./res/img/ship_player_U.png"));
+        p2.SetImage(new Image("./res/img/ship_player_D.png"));
     }
     
-    private void GenerateTraffic(){
+    private void GenerateEnemy(){
         Random rand1 = new Random();
         int rDir = rand1.nextInt(2);
         Random rand2 = new Random();
-        Random rand3 = new Random();
-        Random rand4 = new Random();
-        if(rDir == 0){
-        //downbound traffic
-            int rType = rand4.nextInt(2);
+        if(rDir == 1){
             int pX = rand2.nextInt(256);
-            if(rType == 1){
-                enemy.add(new Enemy(new Vector2f(pX, -32), new Vector2f(32, 32), 1));
-            }else{
-                npc.add(new NPC(new Vector2f(pX, -32), new Vector2f(32, 32), 1));
+            enemy.add(new Enemy(new Vector2f(pX, -32), new Vector2f(32, 32), 1));
+            for(int i = 0; i < enemy.size(); i++){
+                try{
+                    enemy.get(i).SetImage(new Image("./res/img/ship_enemy_D.png"));
+                }catch(SlickException e){
+                    e.printStackTrace();}
             }
         }else{
-        //Upward traffic
-            int rType = rand4.nextInt(2);
-            int pX = rand3.nextInt(512);
+            int pX = rand2.nextInt(512);
             if(pX > 256){
-                if(rType == 1){
-                    enemy.add(new Enemy(new Vector2f(pX, 768), new Vector2f(32, 32), 2));
-                }else{
-                    npc.add(new NPC(new Vector2f(pX, 768), new Vector2f(32, 32), 2));
+                enemy.add(new Enemy(new Vector2f(pX, 768), new Vector2f(32, 32), 2));
+            }
+            for(int i = 0; i < enemy.size(); i++){
+                try{
+                    enemy.get(i).SetImage(new Image("./res/img/ship_enemy_U.png"));
+                }catch(SlickException e){
+                    e.printStackTrace();}
+            }
+        }
+    }
+    
+    private void HandlePauseScreen(GameContainer gc, StateBasedGame sbg){
+        mousePoint = new Point(gc.getInput().getMouseX(), gc.getInput().getMouseY());
+        Rectangle resumeRect = new Rectangle(128, 196, masterResumeBtn.getWidth(), masterResumeBtn.getHeight());
+        Rectangle retryRect = new Rectangle(128, 292, masterRetryBtn.getWidth(), masterRetryBtn.getHeight());
+        Rectangle backRect = new Rectangle(128, 388, masterBackBtn.getWidth(), masterBackBtn.getHeight());
+        if(resumeRect.contains(mousePoint)){
+            masterResumeBtn = activeResumeBtn;
+            if(gc.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON)){
+                Pause =! Pause;
+            }
+        }else{
+            masterResumeBtn = passiveResumeBtn;
+        }
+        if(retryRect.contains(mousePoint)){
+            masterRetryBtn = activeRetryBtn;
+            if(gc.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON)){
+                //Reset 
+                Reset();
+                Pause = false;
+            }
+        }else{
+            masterRetryBtn = passiveRetryBtn;
+        }
+        if(backRect.contains(mousePoint)){
+            masterBackBtn = activeBackBtn;
+            if(gc.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON)){
+                sbg.enterState(0);
+            }
+        }else{
+            masterBackBtn = passiveBackBtn;
+        }
+        
+    }
+    
+    private void RenderPauseScreen(Graphics g){
+        g.drawImage(background, 0, 0);
+        g.drawImage(masterResumeBtn, 128, 196);
+        g.drawImage(masterRetryBtn, 128, 292);
+        g.drawImage(masterBackBtn, 128, 388);
+    }
+    
+    private void HandleGameOverScreen(GameContainer gc, StateBasedGame sbg){
+        mousePoint = new Point(gc.getInput().getMouseX(), gc.getInput().getMouseY());
+        Rectangle retryRect = new Rectangle(128, 292, masterRetryBtn.getWidth(), masterRetryBtn.getHeight());
+        Rectangle backRect = new Rectangle(128, 388, masterBackBtn.getWidth(), masterBackBtn.getHeight());
+        
+        if(retryRect.contains(mousePoint)){
+            masterRetryBtn = activeRetryBtn;
+            if(gc.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON)){
+                //Reset 
+                Reset();
+                GameOver = false;
+            }
+        }else{
+            masterRetryBtn = passiveRetryBtn;
+        }
+        if(backRect.contains(mousePoint)){
+            masterBackBtn = activeBackBtn;
+            if(gc.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON)){
+                sbg.enterState(0);
+            }
+        }else{
+            masterBackBtn = passiveBackBtn;
+        }
+    }
+    
+    private void RenderGameOverScreen(Graphics g){
+        g.drawImage(background, 0, 0);
+        g.drawImage(masterRetryBtn, 128, 292);
+        g.drawImage(masterBackBtn, 128, 388);
+    }
+    
+    private void GenerateNPC(){
+        Random rand1 = new Random();
+        int rDir = rand1.nextInt(2);
+        Random rand2 = new Random();
+        if(rDir == 1){
+            int pX = rand2.nextInt(256);
+            npc.add(new NPC(new Vector2f(pX, -32), new Vector2f(32, 32), 1));
+            for(int i = 0; i < npc.size(); i++){
+                try{
+                    npc.get(i).SetImage(new Image("./res/img/ship_npc_D.png"));
+                }catch(SlickException e){
+                    e.printStackTrace();
+                }
+            }
+        }else{
+            int pX = rand2.nextInt(512);
+            if(pX > 256){
+                npc.add(new NPC(new Vector2f(pX, 256), new Vector2f(32, 32), 2));
+            }
+            for(int i = 0; i < npc.size(); i++){
+                try{
+                    npc.get(i).SetImage(new Image("./res/img/ship_npc_U.png"));
+                }catch(SlickException e){
+                    e.printStackTrace();
                 }
             }
         }
     }
 }
+

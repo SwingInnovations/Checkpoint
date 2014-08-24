@@ -61,6 +61,7 @@ public class Enemy implements Entity {
             g.draw(poly);
         }
         //draw image
+        g.drawImage(image, position.x, position.y);
     }
     
     public void SetImage(Image img){
